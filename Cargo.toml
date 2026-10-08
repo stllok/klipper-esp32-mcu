@@ -1,0 +1,17 @@
+[package]
+name = "klipper-esp32-mcu"
+version = "0.1.0"
+edition = "2024"
+
+# Host-testable protocol core. Firmware (xtensa) lives in ./firmware and
+# depends on this crate by path; it is built separately with the esp toolchain.
+[workspace]
+exclude = ["firmware"]
+
+[dependencies]
+
+[build-dependencies]
+miniz_oxide = "=0.8.9"
+
+[dev-dependencies]
+miniz_oxide = "=0.8.9"

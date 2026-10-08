@@ -1,0 +1,5 @@
+# Keep user/runtime configuration values in this file.
+[env]
+ESP_LOG="info"
+# JOKER ships ESP32 rev 1.1; esp-hal defaults to requiring rev 3.0.
+ESP_HAL_CONFIG_MIN_CHIP_REVISION="100"
