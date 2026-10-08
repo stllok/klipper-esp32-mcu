@@ -146,12 +146,6 @@ pub struct Mcu {
     pool: Pool,
 }
 
-impl Default for Mcu {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 fn reason_id(s: &str) -> u16 {
     let i = STATIC_STRINGS.iter().position(|x| *x == s).expect("unknown static string");
     i as u16 + STATIC_STRING_MIN
@@ -170,12 +164,6 @@ pub struct Parsed {
     nargs: usize,
     /// Bytes of the (single) buffer param, if any.
     buf: [u8; MESSAGE_MAX],
-}
-
-impl Parsed {
-    pub fn cmd_id(&self) -> Option<u32> {
-        self.cmd.map(|c| c.0)
-    }
 }
 
 /// Decode the first command in payload `p`; returns it and the rest

@@ -4,17 +4,9 @@ include!("src/dict_defs.rs");
 
 use std::fmt::Write;
 
+// Debug escaping == JSON escaping for the ASCII names in dict_defs.rs.
 fn q(s: &str) -> String {
-    let mut o = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => o.push_str("\\\""),
-            '\\' => o.push_str("\\\\"),
-            _ => o.push(c),
-        }
-    }
-    o.push('"');
-    o
+    format!("{s:?}")
 }
 
 fn obj(items: impl Iterator<Item = String>) -> String {
@@ -72,7 +64,6 @@ fn main() {
     .unwrap();
 
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    std::fs::write(out.join("dict.json"), &json).unwrap();
     let z = miniz_oxide::deflate::compress_to_vec_zlib(json.as_bytes(), 10);
     std::fs::write(out.join("dict.zlib"), z).unwrap();
 }

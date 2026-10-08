@@ -491,7 +491,6 @@ dependencies = [
  "esp-rom-sys",
  "esp-storage",
  "jiff",
- "log",
  "sha2",
  "strum",
 ]
@@ -553,7 +552,6 @@ dependencies = [
  "esp32s31",
  "fugit",
  "instability",
- "log",
  "nb 1.1.0",
  "paste",
  "portable-atomic",
@@ -768,7 +766,6 @@ dependencies = [
  "esp-hal",
  "esp-println",
  "klipper-esp32-mcu",
- "log",
  "nb 1.1.0",
 ]
 

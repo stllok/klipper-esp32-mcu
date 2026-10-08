@@ -51,12 +51,6 @@ impl Pool {
     }
 }
 
-impl Default for Pool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 const POSITION_BIAS: u32 = 0x4000_0000;
 const LAST_DIR: u8 = 1 << 0;
 const NEXT_DIR: u8 = 1 << 1;
