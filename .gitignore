@@ -3,6 +3,7 @@
 /.pi/.goals-pool-snapshot.json
 /.pi/goals
 /backup
+/.hwtest
 
 
 # Added by cargo

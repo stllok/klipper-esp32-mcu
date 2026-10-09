@@ -1,4 +1,4 @@
 [flash]
-mode = "qio"
+mode = "dio"
 size = "8MB"
 frequency = "80MHz"
