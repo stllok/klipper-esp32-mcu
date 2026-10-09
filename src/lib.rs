@@ -31,21 +31,13 @@ pub fn crc16_ccitt(buf: &[u8]) -> u16 {
 pub fn encode_vlq(out: &mut [u8], v: u32) -> usize {
     let sv = v as i32;
     let mut n = 0;
-    if !(-(1 << 26)..(3 << 26)).contains(&sv) {
-        out[n] = ((sv >> 28) & 0x7f) as u8 | 0x80;
-        n += 1;
-    }
-    if !(-(1 << 19)..(3 << 19)).contains(&sv) {
-        out[n] = ((sv >> 21) & 0x7f) as u8 | 0x80;
-        n += 1;
-    }
-    if !(-(1 << 12)..(3 << 12)).contains(&sv) {
-        out[n] = ((sv >> 14) & 0x7f) as u8 | 0x80;
-        n += 1;
-    }
-    if !(-(1 << 5)..(3 << 5)).contains(&sv) {
-        out[n] = ((sv >> 7) & 0x7f) as u8 | 0x80;
-        n += 1;
+    // Range bit b = shift-2 checks whether a 7-bit group at `shift` is needed.
+    for shift in [28, 21, 14, 7] {
+        let b = shift - 2;
+        if !(-(1 << b)..(3 << b)).contains(&sv) {
+            out[n] = ((sv >> shift) & 0x7f) as u8 | 0x80;
+            n += 1;
+        }
     }
     out[n] = (sv & 0x7f) as u8;
     n + 1

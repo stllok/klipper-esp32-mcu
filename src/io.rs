@@ -2,7 +2,7 @@
 //! Timers are polled from the main loop (`Mcu::task`); fine for heater/fan
 //! soft-PWM and ADC sampling. ponytail: move to ISR scheduler with steppers.
 
-use crate::mcu::Board;
+use crate::mcu::{Board, Tail};
 
 pub type Res<T = ()> = Result<T, &'static str>;
 
@@ -232,7 +232,7 @@ impl AnalogIn {
     }
 
     /// `query_analog_in` args after oid.
-    pub fn query(&mut self, a: &[u32]) -> Res {
+    pub fn query(&mut self, a: &Tail) -> Res {
         self.next_begin = a[0];
         self.t = Timer { active: false, wake: a[0] };
         self.sample_time = a[1];
@@ -334,7 +334,7 @@ impl Buttons {
     }
 
     /// `buttons_query` args after oid.
-    pub fn query(&mut self, a: &[u32]) -> Res {
+    pub fn query(&mut self, a: &Tail) -> Res {
         self.t = Timer { active: false, wake: a[0] };
         self.rest = a[1];
         self.pressed = a[3] as u8;
@@ -364,12 +364,8 @@ impl Buttons {
 
     /// Poll pins; returns true when `buttons_state` should be sent now.
     pub fn event(&mut self, b: &mut impl Board) -> bool {
-        let mut status = 0u8;
-        for i in 0..self.count as usize {
-            if b.get_in(self.pins[i]) {
-                status |= 1 << i;
-            }
-        }
+        let pins = &self.pins[..self.count as usize];
+        let status = pins.iter().enumerate().fold(0u8, |s, (i, &p)| s | (u8::from(b.get_in(p)) << i));
         let diff = status ^ self.pressed;
         let mut send = false;
         if diff != 0 {

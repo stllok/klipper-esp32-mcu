@@ -126,6 +126,16 @@ enum Arg<'a> {
 
 const RX_SIZE: usize = RECEIVE_WINDOW as usize;
 const MAX_ARGS: usize = 10;
+/// Command args, zero-padded to `MAX_ARGS`: constant indexes are checked at
+/// compile time, so handlers carry no runtime bounds checks.
+pub type Args = [u32; MAX_ARGS];
+/// Args after the leading oid.
+pub type Tail = [u32; MAX_ARGS - 1];
+
+fn tail(a: &Args) -> &Tail {
+    let [_, t @ ..] = a;
+    t
+}
 
 pub struct Mcu {
     rx: [u8; RX_SIZE],
@@ -160,7 +170,7 @@ fn param_is_buf(fmt: &str) -> impl Iterator<Item = bool> + '_ {
 pub struct Parsed {
     cmd: Option<(u32, Kind)>,
     err: &'static str,
-    args: [u32; MAX_ARGS],
+    args: Args,
     nargs: usize,
     /// Bytes of the (single) buffer param, if any.
     buf: [u8; MESSAGE_MAX],
@@ -190,6 +200,24 @@ pub fn parse(mut p: &[u8]) -> (Parsed, &[u8]) {
     }
     c.cmd = Some((cmd, kind));
     (c, p)
+}
+
+/// Typed `&mut` accessors into `objs`; wrong variant or oid -> "Invalid oid type".
+macro_rules! accessors {
+    ($($name:ident: $var:ident => $ty:ty),* $(,)?) => {
+        impl Mcu {
+            $(fn $name(&mut self, oid: u32) -> Res<&mut $ty> {
+                match self.objs.get_mut(oid as usize) {
+                    Some(Obj::$var(x)) => Ok(x),
+                    _ => Err("Invalid oid type"),
+                }
+            })*
+        }
+    };
+}
+accessors! {
+    dout: Dout => DigitalOut, ain: Ain => AnalogIn, stepper: Stepper => Stepper,
+    endstop: Endstop => Endstop, trsync: Trsync => Trsync, buttons: Buttons => Buttons, i2c: I2c => u8,
 }
 
 impl Mcu {
@@ -443,28 +471,10 @@ impl Mcu {
         }
     }
 
-    fn trsync(&mut self, oid: u32) -> Res<&mut Trsync> {
-        match self.objs.get_mut(oid as usize) {
-            Some(Obj::Trsync(t)) => Ok(t),
-            _ => Err("Invalid oid type"),
-        }
-    }
 
-    fn stepper(&mut self, oid: u32) -> Res<&mut Stepper> {
-        match self.objs.get_mut(oid as usize) {
-            Some(Obj::Stepper(s)) => Ok(s),
-            _ => Err("Invalid oid type"),
-        }
-    }
 
-    fn endstop(&mut self, oid: u32) -> Res<&mut Endstop> {
-        match self.objs.get_mut(oid as usize) {
-            Some(Obj::Endstop(e)) => Ok(e),
-            _ => Err("Invalid oid type"),
-        }
-    }
 
-    fn motion_cmd(&mut self, cmd: u32, a: &[u32], b: &mut impl Board) -> Res {
+    fn motion_cmd(&mut self, cmd: u32, a: &Args, b: &mut impl Board) -> Res {
         match cmd {
             id::CONFIG_STEPPER => {
                 let s = Stepper::new(b, a[1], a[2], a[3] as i8, a[4]).map(Obj::Stepper);
@@ -474,7 +484,7 @@ impl Mcu {
                 let Some(Obj::Stepper(s)) = self.objs.get_mut(a[0] as usize) else {
                     return Err("Invalid oid type");
                 };
-                s.queue_step(b, &mut self.pool, &a[1..])
+                s.queue_step(b, &mut self.pool, tail(a))
             }
             id::SET_NEXT_STEP_DIR => {
                 self.stepper(a[0])?.set_next_dir(a[1] != 0);
@@ -503,7 +513,7 @@ impl Mcu {
                 if a[3] != 0 {
                     self.trsync(a[6])?;
                 }
-                self.endstop(a[0])?.home(&a[1..]);
+                self.endstop(a[0])?.home(tail(a));
                 Ok(())
             }
             id::ENDSTOP_QUERY_STATE => {
@@ -516,7 +526,7 @@ impl Mcu {
             }
             id::CONFIG_TRSYNC => self.alloc(a[0], Ok(Obj::Trsync(Trsync::default()))),
             id::TRSYNC_START => {
-                self.trsync(a[0])?.start(&a[1..]);
+                self.trsync(a[0])?.start(tail(a));
                 self.detach(b, a[0] as u8, false);
                 Ok(())
             }
@@ -550,28 +560,10 @@ impl Mcu {
         Ok(())
     }
 
-    fn buttons(&mut self, oid: u32) -> Res<&mut Buttons> {
-        match self.objs.get_mut(oid as usize) {
-            Some(Obj::Buttons(x)) => Ok(x),
-            _ => Err("Invalid oid type"),
-        }
-    }
 
-    fn i2c(&mut self, oid: u32) -> Res<&mut u8> {
-        match self.objs.get_mut(oid as usize) {
-            Some(Obj::I2c(a)) => Ok(a),
-            _ => Err("Invalid oid type"),
-        }
-    }
 
-    fn dout(&mut self, oid: u32) -> Res<&mut DigitalOut> {
-        match self.objs.get_mut(oid as usize) {
-            Some(Obj::Dout(d)) => Ok(d),
-            _ => Err("Invalid oid type"),
-        }
-    }
 
-    fn io_cmd(&mut self, cmd: u32, a: &[u32], buf: &[u8], b: &mut impl Board) -> Res {
+    fn io_cmd(&mut self, cmd: u32, a: &Args, buf: &[u8], b: &mut impl Board) -> Res {
         match cmd {
             id::CONFIG_DIGITAL_OUT => {
                 let d = DigitalOut::new(b, a[1], a[2] != 0, a[3] != 0, a[4]).map(Obj::Dout);
@@ -588,16 +580,13 @@ impl Mcu {
                 let o = AnalogIn::new(b, a[1]).map(Obj::Ain);
                 self.alloc(a[0], o)
             }
-            id::QUERY_ANALOG_IN => match self.objs.get_mut(a[0] as usize) {
-                Some(Obj::Ain(x)) => x.query(&a[1..]),
-                _ => Err("Invalid oid type"),
-            }
+            id::QUERY_ANALOG_IN => self.ain(a[0])?.query(tail(a)),
             id::CONFIG_BUTTONS => {
                 let o = Buttons::new(a[1]).map(Obj::Buttons);
                 self.alloc(a[0], o)
             }
             id::BUTTONS_ADD => self.buttons(a[0])?.add(b, a[1], a[2], a[3] != 0),
-            id::BUTTONS_QUERY => self.buttons(a[0])?.query(&a[1..]),
+            id::BUTTONS_QUERY => self.buttons(a[0])?.query(tail(a)),
             id::BUTTONS_ACK => {
                 self.buttons(a[0])?.ack(a[1] as u8);
                 Ok(())
@@ -661,11 +650,11 @@ impl Mcu {
             let r = self.shutdown_reason.unwrap_or(0);
             self.send(b, id::IS_SHUTDOWN, &[Arg::Int(r as u32)]);
         } else {
-            self.run(cmd, &c.args[..c.nargs], &c.buf, b);
+            self.run(cmd, &c.args, &c.buf, b);
         }
     }
 
-    fn run(&mut self, cmd: u32, a: &[u32], buf: &[u8], b: &mut impl Board) {
+    fn run(&mut self, cmd: u32, a: &Args, buf: &[u8], b: &mut impl Board) {
         match cmd {
             id::IDENTIFY => {
                 let off = (a[0] as usize).min(IDENTIFY_DATA.len());
@@ -1015,6 +1004,13 @@ mod tests {
 
     fn payload(b: &[u8]) -> &[u8] {
         &b[2..b.len() - 3]
+    }
+
+    #[test]
+    fn args_fit_max_args() {
+        for (_, fmt) in MESSAGES {
+            assert!(param_is_buf(fmt).count() <= MAX_ARGS, "{fmt}");
+        }
     }
 
     #[test]

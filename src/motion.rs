@@ -5,11 +5,18 @@
 
 use crate::dict_defs::CLOCK_FREQ;
 use crate::io::{Res, Timer, before};
-use crate::mcu::Board;
+use crate::mcu::{Board, Tail};
 
 /// Moves shared by all steppers (Klipper move_alloc pool), reported as move_count.
 pub const MOVE_COUNT: usize = 1024;
 const NIL: u16 = u16::MAX;
+const _: () = assert!(MOVE_COUNT.is_power_of_two());
+
+/// Pool index; the mask lets the compiler drop the bounds check (callers
+/// never pass NIL, and live indexes are already < MOVE_COUNT).
+fn idx(i: u16) -> usize {
+    i as usize & (MOVE_COUNT - 1)
+}
 
 #[derive(Clone, Copy)]
 struct Move {
@@ -41,12 +48,12 @@ impl Pool {
         if i == NIL {
             return Err("Move queue overflow");
         }
-        self.free = self.m[i as usize].next;
-        self.m[i as usize] = Move { next: NIL, ..v };
+        self.free = self.m[idx(i)].next;
+        self.m[idx(i)] = Move { next: NIL, ..v };
         Ok(i)
     }
     fn release(&mut self, i: u16) {
-        self.m[i as usize].next = self.free;
+        self.m[idx(i)].next = self.free;
         self.free = i;
     }
 }
@@ -122,7 +129,7 @@ impl Stepper {
             return Ok(());
         }
         let i = self.head;
-        let m = pool.m[i as usize];
+        let m = pool.m[idx(i)];
         self.head = m.next;
         if self.head == NIL {
             self.tail = NIL;
@@ -187,7 +194,7 @@ impl Stepper {
         self.load_next(b, pool)
     }
 
-    pub fn queue_step(&mut self, b: &mut impl Board, pool: &mut Pool, a: &[u32]) -> Res {
+    pub fn queue_step(&mut self, b: &mut impl Board, pool: &mut Pool, a: &Tail) -> Res {
         let count = a[1] as u16;
         if count == 0 {
             return Err("Invalid count parameter");
@@ -205,7 +212,7 @@ impl Stepper {
         if self.tail == NIL {
             self.head = i;
         } else {
-            pool.m[self.tail as usize].next = i;
+            pool.m[idx(self.tail)].next = i;
         }
         self.tail = i;
         if self.count == 0 {
@@ -250,7 +257,7 @@ impl Stepper {
         }
         while self.head != NIL {
             let i = self.head;
-            self.head = pool.m[i as usize].next;
+            self.head = pool.m[idx(i)].next;
             pool.release(i);
         }
         self.tail = NIL;
@@ -286,7 +293,7 @@ impl Endstop {
     }
 
     /// `endstop_home` args after oid; caller validated trsync oid a[5].
-    pub fn home(&mut self, a: &[u32]) {
+    pub fn home(&mut self, a: &Tail) {
         self.t = Timer { active: false, wake: a[0] };
         self.sample_time = a[1];
         self.sample_count = a[2] as u8;
@@ -349,7 +356,7 @@ impl Trsync {
         *self = Self::default();
     }
 
-    pub fn start(&mut self, a: &[u32]) {
+    pub fn start(&mut self, a: &Tail) {
         self.clear();
         self.flags = CAN_TRIGGER;
         self.report_ticks = a[1];
