@@ -243,3 +243,12 @@ overrides rustflags at target level so the xtensa linker is used.
    `enable_pin` for both; document in sample config.
 5. Strapping pins (GPIO2, 12, 15) used by board signals; leave them as inputs
    until boot completes.
+
+## 11. Upstream sync log
+Reference Klipper: `ee2c6fb` (2026-10-21). Commits since `461c4e3` reviewed:
+- sensor_cs1237, icm20948, i2c_software, stm32 hard_pwm, ar100 serial: N/A
+  (drivers/ports not implemented here).
+- mcu.py/serialhdl.py ack-abort + CommandError (530a356, 9cb9975): host-only,
+  no MCU protocol change. N/A.
+- tmc5262/tmc callbacks, pid_calibrate, temperature_probe,
+  axis_twist_compensation, docs: host-only. N/A.
