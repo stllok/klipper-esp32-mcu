@@ -85,6 +85,9 @@ if [ -f "$DIR/klippy.pid" ]; then
 fi
 
 cp config/printer-joker.cfg "$DIR/printer.cfg"
+# printer.cfg includes fluidd.cfg (fluidd-config client.cfg, as on the host).
+[ -f "$DIR/fluidd.cfg" ] || curl -sfL -o "$DIR/fluidd.cfg" \
+    https://raw.githubusercontent.com/fluidd-core/fluidd-config/master/client.cfg
 : > "$DIR/klippy.log"
 if [ "$MACOS" = 1 ]; then
     # /dev/serial/by-id is Linux-only; use SERIAL or first /dev/cu.usbserial-*.
